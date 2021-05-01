@@ -8,10 +8,12 @@ import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.content.pm.PackageManager;
+import android.location.Location;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.huawei.hmf.tasks.OnFailureListener;
@@ -19,13 +21,21 @@ import com.huawei.hmf.tasks.OnSuccessListener;
 import com.huawei.hms.common.ApiException;
 import com.huawei.hms.common.ResolvableApiException;
 import com.huawei.hms.location.FusedLocationProviderClient;
+import com.huawei.hms.location.LocationAvailability;
+import com.huawei.hms.location.LocationCallback;
 import com.huawei.hms.location.LocationRequest;
+import com.huawei.hms.location.LocationResult;
 import com.huawei.hms.location.LocationServices;
 import com.huawei.hms.location.LocationSettingsRequest;
 import com.huawei.hms.location.LocationSettingsResponse;
 import com.huawei.hms.location.LocationSettingsStatusCodes;
 import com.huawei.hms.location.SettingsClient;
+import com.huawei.hms.utils.JsonUtil;
 //import com.huawei.hms.support.api.location.common.HMSLocationLog;
+
+import org.w3c.dom.ls.LSOutput;
+
+import java.util.List;
 
 import static android.widget.Toast.LENGTH_SHORT;
 
@@ -36,6 +46,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     LocationRequest mLocationRequest;
     private FusedLocationProviderClient mFusedLocationProviderClient;
     private SettingsClient mSettingClient;
+    TextView txtResult;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -69,6 +80,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         findViewById(R.id.requestlocationupdate).setOnClickListener(this);
         findViewById(R.id.removerequestlocationupdate).setOnClickListener(this);
+        txtResult = findViewById(R.id.txtResult);
 
         // the "this" refers to this MainActivity or the context of the activity
         mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
@@ -104,6 +116,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         // Check whether the app has allowed location setting
         // Put the parameters in builder
         LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder();
+        mLocationRequest = new LocationRequest();
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
         builder.addLocationRequest(mLocationRequest);
         // return build value
         LocationSettingsRequest locationSettingsRequest = builder.build();
@@ -146,6 +160,33 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         }
                     }
                 });
+
+        // To get address
+        mLocationRequest.setNeedAddress(true);
+        // Set the location update interval (in milliseconds).
+        mLocationRequest.setInterval(1000);
+        // Set the location type.
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        LocationCallback mLocationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(LocationResult locationResult) {
+                if (locationResult != null) {
+                    // Process the location callback result.
+                    String strLocation ="Latitude:"+locationResult.getLastLocation().getLatitude()+
+                            "\nLongitude"+locationResult.getLastLocation().getLongitude();
+                    Log.d("MainActivity", strLocation);
+                    /*
+                    Log.d(TAG, "Country:"+locationResult.getLastHWLocation().getCounty());
+                    Log.d(TAG, "CountryCode:"+locationResult.getLastHWLocation().getCountryCode());
+                    Log.d(TAG, "State:"+locationResult.getLastHWLocation().getState());
+                    Log.d(TAG, "Postal Code:"+locationResult.getLastHWLocation().getPostalCode());
+                    Log.d(TAG, "Latitude:"+locationResult.getLastHWLocation().getLatitude());
+                    Log.d(TAG, "Longitude:"+locationResult.getLastHWLocation().getLongitude());*/
+                    Toast.makeText(MainActivity.this, strLocation,Toast.LENGTH_LONG ).show();
+                    txtResult.setText(strLocation);
+                }
+            }
+        };
     }
 
     private PendingIntent getPendingIntent() {
@@ -181,4 +222,5 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
 
     }
+
 }
