@@ -11,16 +11,21 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.android.gms.maps.model.LatLng;
 import com.huawei.hmf.tasks.OnFailureListener;
 import com.huawei.hmf.tasks.OnSuccessListener;
+import com.huawei.hmf.tasks.Task;
 import com.huawei.hms.common.ApiException;
 import com.huawei.hms.common.ResolvableApiException;
+import com.huawei.hms.location.ActivityIdentificationService;
 import com.huawei.hms.location.FusedLocationProviderClient;
+import com.huawei.hms.location.HWLocation;
 import com.huawei.hms.location.LocationAvailability;
 import com.huawei.hms.location.LocationCallback;
 import com.huawei.hms.location.LocationRequest;
@@ -35,6 +40,7 @@ import com.huawei.hms.utils.JsonUtil;
 
 import org.w3c.dom.ls.LSOutput;
 
+import java.util.Iterator;
 import java.util.List;
 
 import static android.widget.Toast.LENGTH_SHORT;
@@ -44,6 +50,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     // Step 1 : Create the Location Service Client
     // Initialise LocationRequest, FusedLocationProviderClient, and SettingsClient
     LocationRequest mLocationRequest;
+    LocationCallback mLocationCallback;
     private FusedLocationProviderClient mFusedLocationProviderClient;
     private SettingsClient mSettingClient;
     TextView txtResult;
@@ -52,6 +59,74 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        dynamicPermission();
+
+        findViewById(R.id.requestlocationupdate).setOnClickListener(this);
+        findViewById(R.id.removerequestlocationupdate).setOnClickListener(this);
+        txtResult = findViewById(R.id.txtResult);
+
+        // the "this" refers to this MainActivity or the context of the activity
+        mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
+        mSettingClient = LocationServices.getSettingsClient(this);
+        mLocationRequest = new LocationRequest();
+        // Set the interval for location update(unit:milliseconds)
+        mLocationRequest.setInterval(10000);
+        // Set the priority of the location request as high accuracy
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        mLocationRequest.setNeedAddress(true);
+        mLocationRequest.setLanguage("en");
+        mLocationRequest.setCountryCode("EN");
+
+        mLocationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(LocationResult locationResult) {
+                if (locationResult != null) {
+                    List<Location> locations = locationResult.getLocations();
+                    List<HWLocation> hwLocations = locationResult.getHWLocationList();
+
+//                    Iterator locationsIterator=locations.iterator();
+//                    Iterator HWlocationsIterator=hwLocations.iterator();
+//                    while (locationsIterator.hasNext()&&HWlocationsIterator.hasNext()){
+//                        Location location = (Location) locationsIterator.next();
+//                        HWLocation hwlocation = (HWLocation) HWlocationsIterator.next();
+//                        txtResult.setText("Location [Longitude,Latitude,Accuracy]: "
+//                                    + "\n" + location.getLongitude()
+//                                    + "\n" + location.getLatitude()
+//                                    + "\n" + hwlocation.getCity()+","+ hwlocation.getCountryCode()+ ","+ hwlocation.getCountryName() +","+hwlocation.getLatitude()+ ","+hwlocation.getLongitude()
+//                                    + "\n" + location.getAccuracy());
+//                    }
+                    if (!hwLocations.isEmpty()) {
+                        for (HWLocation location : hwLocations) {
+                            Log.i("MainActivity", "onLocationResult location[Longitude,Latitude,Accuracy]:" + location.getLongitude()
+                                            + "," + location.getLatitude() + "," + location.getAccuracy());
+
+                            txtResult.setText("Location [Longitude,Latitude,Accuracy]: "
+                                    + "\n" + location.getLongitude()
+                                    + "\n" + location.getLatitude()
+                                    + "\n" + location.getCountryCode()
+                                    + "\n" + location.getCountryName()
+                                    + "\n" + location.getCity()
+                                    + "\n" + location.getState()
+                                    + "\n" + location.getCounty()
+                                    + "\n" + location.getTime()
+                                    + "\n" + location.getAccuracy());
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public void onLocationAvailability(LocationAvailability locationAvailability) {
+                if (locationAvailability != null) {
+                    boolean flag = locationAvailability.isLocationAvailable();
+                    Log.i("MainActivity", "onLocationAvailability isLocationAvailable:" + flag);
+                }
+            }
+        };
+    }
+
+    private void dynamicPermission() {
         // Dynamically apply for required permissions if the API level is 28 or smaller.
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
             Log.i("MainActivity", "android sdk <= 28 Q");
@@ -77,25 +152,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 ActivityCompat.requestPermissions(this, strings, 2);
             }
         }
-
-        findViewById(R.id.requestlocationupdate).setOnClickListener(this);
-        findViewById(R.id.removerequestlocationupdate).setOnClickListener(this);
-        txtResult = findViewById(R.id.txtResult);
-
-        // the "this" refers to this MainActivity or the context of the activity
-        mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
-        mSettingClient = LocationServices.getSettingsClient(this);
-        mLocationRequest = new LocationRequest();
-        // Set the interval for location update(unit:milliseconds)
-        mLocationRequest.setInterval(10000);
-        // Set the priority of the location request as high accuracy
-        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
     }
-
 
     private void removeLocationUpdatesWithIntent() {
         // Note: When requesting location updates is stopped, mLocationCallback must be the same object as LocationCallback in the requestLocationUpdates method.
-        mFusedLocationProviderClient.removeLocationUpdates(getPendingIntent())
+        mFusedLocationProviderClient.removeLocationUpdates(mLocationCallback)
                 // Define callback for success in stopping requesting location updates.
                 .addOnSuccessListener(new OnSuccessListener<Void>() {
                     @Override
@@ -113,94 +174,63 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     private void requestLocationUpdatesWithIntent() {
-        // Check whether the app has allowed location setting
-        // Put the parameters in builder
-        LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder();
-        mLocationRequest = new LocationRequest();
-        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-        builder.addLocationRequest(mLocationRequest);
-        // return build value
-        LocationSettingsRequest locationSettingsRequest = builder.build();
-        // Check the device location settings.
-        mSettingClient.checkLocationSettings(locationSettingsRequest)
-                // Define callback for success in checking the device location settings.
-                .addOnSuccessListener(new OnSuccessListener<LocationSettingsResponse>() {
-                    @Override
-                    public void onSuccess(LocationSettingsResponse locationSettingsResponse) {
-                        // Initiate location requests when the location settings meet the requirements.
-                        mFusedLocationProviderClient
-                                .requestLocationUpdates(mLocationRequest, getPendingIntent())
-                                // Define callback for success in requesting location updates.
-                                .addOnSuccessListener(new OnSuccessListener<Void>() {
-                                    // If success perform certain actions
-                                    @Override
-                                    public void onSuccess(Void aVoid) {
-                                        Toast.makeText(MainActivity.this,"Location Setting Correct", LENGTH_SHORT).show();
-                                    }
-                                });
-                    }
-                })
-                // Define callback for failure in checking the device location settings.
-                .addOnFailureListener(new OnFailureListener() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        // Device location settings do not meet the requirements.
-                        int statusCode = ((ApiException) e).getStatusCode();
-                        switch (statusCode) {
-                            case LocationSettingsStatusCodes.RESOLUTION_REQUIRED:
-                                try {
-                                    ResolvableApiException rae = (ResolvableApiException) e;
-                                    Toast.makeText(MainActivity.this,"Location Setting Incorrect", LENGTH_SHORT).show();
-                                    // Call startResolutionForResult to display a pop-up asking the user to enable related permission.
-                                    rae.startResolutionForResult(MainActivity.this, 0);
-                                } catch (IntentSender.SendIntentException sie) {
-                                    Toast.makeText(MainActivity.this, (CharSequence) sie, LENGTH_SHORT).show();
-                                }
-                                break;
+        try {
+            LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder();
+            builder.addLocationRequest(mLocationRequest);
+            LocationSettingsRequest locationSettingsRequest = builder.build();
+            // Check the device location settings.
+            Task<LocationSettingsResponse> locationSettingsResponseTask = mSettingClient.checkLocationSettings(locationSettingsRequest);
+            locationSettingsResponseTask
+                    // Define callback for success in checking the device location settings.
+                    .addOnSuccessListener(new OnSuccessListener<LocationSettingsResponse>() {
+                        @Override
+                        public void onSuccess(LocationSettingsResponse locationSettingsResponse) {
+                            Log.i("MainActivity", "check location settings success");
+                            // Initiate location requests when the location settings meet the requirements.
+                            mFusedLocationProviderClient
+                                    .requestLocationUpdates(mLocationRequest, mLocationCallback, Looper.getMainLooper())
+                                    // Define callback for success in requesting location updates.
+                                    .addOnSuccessListener(new OnSuccessListener<Void>() {
+                                        // If success perform certain actions
+                                        @Override
+                                        public void onSuccess(Void aVoid) {
+                                            Log.i("MainActivity", "requestLocationUpdatesWithCallback onSuccess");
+                                        }
+                                    })
+                                    .addOnFailureListener(new OnFailureListener() {
+                                        // If failed perform certain actions
+                                        @Override
+                                        public void onFailure(Exception e) {
+                                            Log.e("MainActivity", "requestLocationUpdatesWithCallback onFailure:" + e.getMessage());
+                                        }
+                                    });
                         }
-                    }
-                });
-
-        // To get address
-        mLocationRequest.setNeedAddress(true);
-        // Set the location update interval (in milliseconds).
-        mLocationRequest.setInterval(1000);
-        // Set the location type.
-        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-        LocationCallback mLocationCallback = new LocationCallback() {
-            @Override
-            public void onLocationResult(LocationResult locationResult) {
-                if (locationResult != null) {
-                    // Process the location callback result.
-                    String strLocation ="Latitude:"+locationResult.getLastLocation().getLatitude()+
-                            "\nLongitude"+locationResult.getLastLocation().getLongitude();
-                    Log.d("MainActivity", strLocation);
-                    /*
-                    Log.d(TAG, "Country:"+locationResult.getLastHWLocation().getCounty());
-                    Log.d(TAG, "CountryCode:"+locationResult.getLastHWLocation().getCountryCode());
-                    Log.d(TAG, "State:"+locationResult.getLastHWLocation().getState());
-                    Log.d(TAG, "Postal Code:"+locationResult.getLastHWLocation().getPostalCode());
-                    Log.d(TAG, "Latitude:"+locationResult.getLastHWLocation().getLatitude());
-                    Log.d(TAG, "Longitude:"+locationResult.getLastHWLocation().getLongitude());*/
-                    Toast.makeText(MainActivity.this, strLocation,Toast.LENGTH_LONG ).show();
-                    txtResult.setText(strLocation);
-                }
-            }
-        };
-    }
-
-    private PendingIntent getPendingIntent() {
-        //The LocationBroadcastReceiver class is a custom class. For detailed implementation methods, please refer to the sample code.
-        Intent intent = new Intent(this, LocationBroadcastReceiver.class);
-        intent.setAction(LocationBroadcastReceiver.ACTION_PROCESS_LOCATION);
-        return PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
-    }
-
-
-    private void startIntent(Class<?> clazz) {
-        Intent intent = new Intent(this,clazz);
-        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        startActivity(intent);
+                    })
+                    // Define callback for failure in checking the device location settings.
+                    .addOnFailureListener(new OnFailureListener() {
+                        @Override
+                        public void onFailure(Exception e) {
+                            // Device location settings do not meet the requirements.
+                            int statusCode = ((ApiException) e).getStatusCode();
+                            switch (statusCode) {
+                                case LocationSettingsStatusCodes.RESOLUTION_REQUIRED:
+                                    try {
+                                        ResolvableApiException rae = (ResolvableApiException) e;
+                                        Toast.makeText(MainActivity.this, "Location Setting Incorrect", LENGTH_SHORT).show();
+                                        // Call startResolutionForResult to display a pop-up asking the user to enable related permission.
+                                        rae.startResolutionForResult(MainActivity.this, 0);
+                                    } catch (IntentSender.SendIntentException sie) {
+                                        Toast.makeText(MainActivity.this, (CharSequence) sie, LENGTH_SHORT).show();
+                                    }
+                                    break;
+                                default:
+                                    break;
+                            }
+                        }
+                    });
+        }catch (Exception e){
+            Log.e("MainActivity","requestLocationUpdates Exception"+ e.getMessage());
+        }
     }
 
     @Override
@@ -216,11 +246,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 default:
                     break;
             }
-
         } catch (Exception e) {
             Log.e("MainActivity", "Request Location Updates Wtih Intent Activity: "+e);
         }
-
     }
 
 }
